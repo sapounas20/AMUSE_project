@@ -1,2 +1,2 @@
 # AMUSE_project
-team members: Max, Zhaoyang, Antonis
+## Stars with disk in cluster 
