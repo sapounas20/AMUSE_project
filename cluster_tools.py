@@ -17,7 +17,7 @@ import numpy as np
 
 
 def make_cluster(n_stars=1000, r_vir=1.0 | units.pc,
-                 fractal_dimension=1.6, seed=42):
+                 fractal_dimension=1.6, seed=42,virial_ratio=0.5):
 
     # the definition and affects of fractal dimension?
     np.random.seed(seed)
@@ -33,7 +33,7 @@ def make_cluster(n_stars=1000, r_vir=1.0 | units.pc,
     #reset the mass-center
     stars.move_to_center()
     #scale the position and velocity to guarantee the Virial_ratio=0.5
-    stars.scale_to_standard(convert_nbody=converter, virial_ratio=0.5)
+    stars.scale_to_standard(convert_nbody=converter, virial_ratio=virial_ratio)
     return stars, converter
 
 
