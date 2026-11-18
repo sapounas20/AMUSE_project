@@ -94,44 +94,31 @@ def _uv_separation_squared_pc2(stars, source_mass=8, disk_mass_limit=2):
     return np.sum(delta**2, axis=2)
 
 
-def exposure_proxy(stars, source_mass=8, disk_mass_limit=2):
-    """Dimensionless sum of (1 pc / d)^2 over all massive UV sources.
-
-    This is a geometric *proxy*, assuming identical UV luminosities for
-    all massive stars; it is NOT the physical FUV flux or a mass-loss rate.
-    """
-    d2 = _uv_separation_squared_pc2(stars, source_mass, disk_mass_limit)
-    # The numerical floor prevents division by zero if two positions coincide.
-    return np.sum(1.0 / np.maximum(d2, 1e-12), axis=1)
 
 
-#def nearest_uv_distance(stars, source_mass=8, disk_mass_limit=2):
-    """Distance to the nearest massive star for each disk host, in pc."""
-    #d2 = _uv_separation_squared_pc2(stars, source_mass, disk_mass_limit)
-    #return np.sqrt(d2.min(axis=1))
+# Define diagnostics explicitly so they do not depend on undocumented
+# helper functions inside cluster_tools.
+def _xyz_pc(particles):
+    return np.column_stack((
+        particles.x.value_in(units.pc),
+        particles.y.value_in(units.pc),
+        particles.z.value_in(units.pc),
+    ))
 
-def nearest_uv_distance(stars, source_mass=8):
-    """3D distance to nearest massive star, for each disk host, in pc."""
-
-    hosts = stars[stars.mass < (2 | units.MSun)]
-    sources = stars[stars.mass >= (source_mass | units.MSun)]
-
+def _disk_host_source_distance_squared(stars, disk_mass_limit=2,
+                                       source_mass_limit=8):
+    hosts = stars[stars.mass < (disk_mass_limit | units.MSun)]
+    sources = stars[stars.mass >= (source_mass_limit | units.MSun)]
     if len(sources) == 0:
-        raise ValueError("No massive UV sources in this cluster")
+        raise ValueError("No stars above the UV-source mass threshold")
+    if len(hosts) == 0:
+        raise ValueError("No stars below the disk-host mass threshold")
+    delta = _xyz_pc(hosts)[:, None, :] - _xyz_pc(sources)[None, :, :]
+    return np.sum(delta**2, axis=2)  # pc^2, numerical values
 
-    def positions(particles):
-        return np.column_stack([
-            particles.x.value_in(units.pc),
-            particles.y.value_in(units.pc),
-            particles.z.value_in(units.pc)
-        ])
+def nearest_uv_distance(stars):
+    return np.sqrt(_disk_host_source_distance_squared(stars).min(axis=1))
 
-    host_pos = positions(hosts)
-    source_pos = positions(sources)
-
-    separation = np.linalg.norm(
-        host_pos[:, None, :] - source_pos[None, :, :],
-        axis=2
-    )
-
-    return separation.min(axis=1)
+def exposure_proxy(stars):
+    distance_sq_pc2 = _disk_host_source_distance_squared(stars)
+    return np.sum(1.0 / np.maximum(distance_sq_pc2, 1e-12), axis=1)
