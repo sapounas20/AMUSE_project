@@ -3,67 +3,6 @@ from amuse.lab import *
 from amuse.ext.protodisk import ProtoPlanetaryDisk
 
 
-
-# Generate particle-based protoplanetary disks using AMUSE.
-#
-# - Select a fraction of stars with M < 2 Msun.
-# - Create a disk of gas particles around each selected star.
-# - Assign disk mass and inner/outer radii.
-# - Randomize disk orientation.
-# - Translate disk positions and velocities to match the host star.
-# - Store the host star's key for disk identification.
-#
-# Unlike the simplified disk-population model, this function
-# creates individual particles representing the disk structure.
-# It does not evolve the disks or calculate photoevaporation.
-
-
-def add_disks(stars, fraction=0.5, n_disk=500,
-              r_min=5 | units.au, r_max=100 | units.au, disk_mass=0.05):
-    """Give a disk to `fraction` of the stars below 2 MSun. Returns the disk particles."""
-
-    # Several clusters (a list, or your `clusters` dict) -> do each one
-    if isinstance(stars, dict):
-        return {name: add_disks(s, fraction, n_disk, r_min, r_max, disk_mass)
-                for name, (s, conv) in stars.items()}
-    if isinstance(stars, list):
-        return [add_disks(s, fraction, n_disk, r_min, r_max, disk_mass) for s in stars]
-
-    # Randomly pick which low-mass stars get a disk
-    low_mass = stars[stars.mass < 2 | units.MSun]
-    n_hosts = int(fraction * len(low_mass))
-    hosts = low_mass.random_sample(n_hosts)
-
-    all_disks = Particles()
-    for star in hosts:
-        converter = nbody_system.nbody_to_si(star.mass, r_min)
-        disk = ProtoPlanetaryDisk(n_disk, convert_nbody=converter,
-                                  Rmin=1.0, Rmax=r_max / r_min,
-                                  discfraction=disk_mass).result
-
-        # Random orientation, then move the disk onto its star
-        disk.rotate(np.random.uniform(0, np.pi), np.random.uniform(0, 2 * np.pi), 0.0)
-        disk.position += star.position
-        disk.velocity += star.velocity
-        disk.host_key = star.key       # remember which star owns the disk
-
-        all_disks.add_particles(disk)
-
-    return all_disks
-
-
-# -----------------------------------------------------------------------------
-# Lightweight disk-population and UV-driven erosion prototype
-# -----------------------------------------------------------------------------
-# This is separate from add_disks(): it tracks ONE disk mass and radius per
-# host star, without generating 500 SPH particles per disk. No hydrodynamics,
-# viscosity or physically calibrated FUV flux/mass-loss rates are included.
-# The UV irradiation intensity and erosion timescale below are toy parameters.
-
-
-
-
-
 # Initialize a population of protoplanetary disks around low-mass stars.
 #
 # - Select stars with masses below 2 solar masses (Msun).
@@ -154,10 +93,6 @@ def relative_uv_intensity(stars, host_indices, uv_mass_limit=8.0,
     weights = (masses[source_indices] / 8.0) ** luminosity_exponent
     return np.sum(weights[None, :] / d2_pc2, axis=1)
 
-
-
-
-
 # Simulate the gradual evaporation of protoplanetary disks.
 #
 # - Use snapshots from the Ph4 gravitational simulation.
@@ -239,3 +174,59 @@ def evolve_disk_population(snapshots, disks, reference_intensity=100.0,
         "host_keys": disks["host_keys"],
         "initial_mass_msun": masses0,
     }
+
+
+
+
+
+
+
+### Max's Add_Disk Function that is Not Used with Adonis's Code- 
+
+# Generate particle-based protoplanetary disks using AMUSE.
+#
+# - Select a fraction of stars with M < 2 Msun.
+# - Create a disk of gas particles around each selected star.
+# - Assign disk mass and inner/outer radii.
+# - Randomize disk orientation.
+# - Translate disk positions and velocities to match the host star.
+# - Store the host star's key for disk identification.
+#
+# Unlike the simplified disk-population model, this function
+# creates individual particles representing the disk structure.
+# It does not evolve the disks or calculate photoevaporation.
+
+def add_disks(stars, fraction=0.5, n_disk=500,
+              r_min=5 | units.au, r_max=100 | units.au, disk_mass=0.05):
+    """Give a disk to `fraction` of the stars below 2 MSun. Returns the disk particles."""
+
+    # Several clusters (a list, or your `clusters` dict) -> do each one
+    if isinstance(stars, dict):
+        return {name: add_disks(s, fraction, n_disk, r_min, r_max, disk_mass)
+                for name, (s, conv) in stars.items()}
+    # one cluster (but we dont use it) 
+    if isinstance(stars, list):
+        return [add_disks(s, fraction, n_disk, r_min, r_max, disk_mass) for s in stars]
+
+    # Randomly pick which low-mass stars get a disk
+    low_mass = stars[stars.mass < 2 | units.MSun]
+    n_hosts = int(fraction * len(low_mass))
+    hosts = low_mass.random_sample(n_hosts)
+
+    all_disks = Particles()
+    for star in hosts:
+        converter = nbody_system.nbody_to_si(star.mass, r_min)
+        disk = ProtoPlanetaryDisk(n_disk, convert_nbody=converter,
+                                  Rmin=1.0, Rmax=r_max / r_min,
+                                  discfraction=disk_mass).result
+
+        # Random orientation, then move the disk onto its star
+        disk.rotate(np.random.uniform(0, np.pi), np.random.uniform(0, 2 * np.pi), 0.0)
+        disk.position += star.position
+        disk.velocity += star.velocity
+        disk.host_key = star.key       # remember which star owns the disk
+
+        all_disks.add_particles(disk)
+
+    return all_disks
+

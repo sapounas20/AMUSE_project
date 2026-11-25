@@ -1,5 +1,3 @@
-#%matplotlib inline
-
 from amuse.lab import *
 from amuse.ic.fractalcluster import new_fractal_cluster_model
 from amuse.ic.kroupa import new_kroupa_mass_distribution
@@ -8,7 +6,6 @@ from amuse.units import nbody_system
 from matplotlib import pyplot as plt
 import numpy as np
 
-
 ### This .py file is a conglomerate of tools that we will use for our cluster evolution! 
 ### you can import them as follows- 
 ### from cluster_tools import *instert name of function* 
@@ -16,24 +13,26 @@ import numpy as np
 ### to be much less crowded & clear in what it is doing... 
 
 
-def make_cluster(n_stars=1000, r_vir=1.0 | units.pc,
-                 fractal_dimension=1.6, seed=42,virial_ratio=0.5):
-
+def make_cluster(n_stars=1000, r_vir=1.0 | units.pc, fractal_dimension=1.6, seed=42,virial_ratio=0.5):
+    
     # the definition and affects of fractal dimension?
     np.random.seed(seed)
-    # 0.08 MSun is Hydrogen-burning limit, otherwise the stars would be brown dwarfs
-    masses = new_kroupa_mass_distribution(
-        n_stars, mass_min=0.08 | units.MSun, mass_max=100 | units.MSun)
+    
+    # 0.08 MSun is the minimum mass we consider because it's the Hydrogen-burning limit 
+    # (otherwise they would be brown dwarfs) 
+    masses = new_kroupa_mass_distribution(n_stars, mass_min=0.08 | units.MSun, mass_max=100 | units.MSun)
     converter = nbody_system.nbody_to_si(masses.sum(), r_vir)
+    
     stars = new_fractal_cluster_model(
         n_stars, fractal_dimension=fractal_dimension,
-        convert_nbody=converter, random_seed=seed)
+
     stars.mass = masses
 
     #reset the mass-center
     stars.move_to_center()
     #scale the position and velocity to guarantee the Virial_ratio=0.5
     stars.scale_to_standard(convert_nbody=converter, virial_ratio=virial_ratio)
+    
     return stars, converter
 
 
@@ -93,32 +92,40 @@ def _uv_separation_squared_pc2(stars, source_mass=8, disk_mass_limit=2):
     delta = host_pos[:, None, :] - source_pos[None, :, :]
     return np.sum(delta**2, axis=2)
 
-
-
-
 # Define diagnostics explicitly so they do not depend on undocumented
 # helper functions inside cluster_tools.
-def _xyz_pc(particles):
-    return np.column_stack((
-        particles.x.value_in(units.pc),
-        particles.y.value_in(units.pc),
-        particles.z.value_in(units.pc),
-    ))
 
-def _disk_host_source_distance_squared(stars, disk_mass_limit=2,
-                                       source_mass_limit=8):
-    hosts = stars[stars.mass < (disk_mass_limit | units.MSun)]
-    sources = stars[stars.mass >= (source_mass_limit | units.MSun)]
+def _xyz_pc(particles):
+    # stacking the x,y,z coordinates into one column! 
+    return np.column_stack((particles.x.value_in(units.pc), particles.y.value_in(units.pc), particles.z.value_in(units.pc),))
+
+def _disk_host_source_distance_squared(stars):
+
+    # Setting Disks/Radiating Stars
+    hosts = stars[stars.mass < (2 | units.MSun)]
+    sources = stars[stars.mass >= (8 | units.MSun)]
+
+    # Sanity Checks :D 
     if len(sources) == 0:
         raise ValueError("No stars above the UV-source mass threshold")
     if len(hosts) == 0:
         raise ValueError("No stars below the disk-host mass threshold")
+
+    # Finding the difference in coordinate distance for radiating hosts - disk sources
     delta = _xyz_pc(hosts)[:, None, :] - _xyz_pc(sources)[None, :, :]
+
+    # 
     return np.sum(delta**2, axis=2)  # pc^2, numerical values
 
 def nearest_uv_distance(stars):
+    # taking the square root of the change 
     return np.sqrt(_disk_host_source_distance_squared(stars).min(axis=1))
 
 def exposure_proxy(stars):
+    # extracting r**2 for every distance between every star with a disk & every radiating star
     distance_sq_pc2 = _disk_host_source_distance_squared(stars)
-    return np.sum(1.0 / np.maximum(distance_sq_pc2, 1e-12), axis=1)
+
+    ### this part of the 
+    
+    # summing over every 1/r**2
+    return np.sum(1.0 / distance_sq_pc2)
